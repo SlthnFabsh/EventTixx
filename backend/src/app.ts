@@ -18,6 +18,7 @@ import { asyncHandler } from './utils/async-handler';
 import { ok } from './utils/response';
 import { eventsManagementRouter } from './modules/events/events.routes';
 import { publicEventsRouter } from './modules/events/catalog.routes';
+import { ordersRouter } from './modules/orders/orders.routes';
 
 export const app = express();
 
@@ -72,6 +73,7 @@ app.patch(
 app.use('/api/v1/admin/users', adminUsersRouter);
 app.use('/api/v1/events', publicEventsRouter);
 app.use('/api/v1/manage/events', eventsManagementRouter);
+app.use('/api/v1/orders', ordersRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

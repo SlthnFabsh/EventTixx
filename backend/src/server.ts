@@ -1,18 +1,21 @@
 import { env } from './config/env';
 import { app } from './app';
 import { prisma } from './lib/prisma';
+import { startOrderExpirationJob } from './jobs/expire-orders';
 
 const server = app.listen(env.PORT, () => {
   console.log(
     `EventTixx API [${env.NODE_ENV}] running on ${env.API_URL} (port ${env.PORT})`,
   );
 });
+const orderExpirationTask = startOrderExpirationJob();
 
 let shuttingDown = false;
 
 const shutdown = async (signal: string, exitCode = 0): Promise<void> => {
   if (shuttingDown) return;
   shuttingDown = true;
+  orderExpirationTask.stop();
 
   console.log(`${signal} received, shutting down...`);
 

@@ -15,7 +15,8 @@ Update terakhir: November 2026.
 | **3** | Auth & RBAC | ✅ Selesai | JWT 15m, Refresh token hash + rotasi, RBAC cache, /auth/*, /admin/users staff |
 | **4** | Event & Kategori Tiket | ✅ Selesai | CRUD event/kategori, owner guard, slug unik, state machine, staff assignment, audit log |
 | **5** | Katalog Publik | ✅ Selesai | Listing/filter/paginasi event terbit, detail kategori dan status penjualan |
-| 6–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
+| **6** | Checkout & Reservasi Stok | ⚠️ Implementasi; DoD DB tertunda | Order guest/member, reserve atomik, voucher/poin, cron expiry |
+| 7–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
 
 ---
 
@@ -117,6 +118,18 @@ Update terakhir: November 2026.
   - `npm run typecheck` lolos.
   - Tes integrasi endpoint terhadap database belum dijalankan.
 
+### FASE 6 — Checkout & Reservasi Stok
+- **Yang dibuat:**
+  - `POST /api/v1/orders` menerima checkout Guest maupun Member; harga diambil dari kategori di database.
+  - Order dibuat `PENDING` dengan expiry 15 menit; stok di-reserve dalam satu transaksi menggunakan row lock dan `UPDATE` bersyarat.
+  - Dukungan voucher umum/member-only, batas kuota voucher, dan redeem poin Member dengan batas 50% subtotal.
+  - `backend/src/jobs/expire-orders.ts` menjalankan expiry tiap menit, melepas stok, mengembalikan poin, dan mengembalikan kuota voucher secara idempoten.
+  - Order dengan total Rp0 ditolak sementara (`ZERO_TOTAL_UNSUPPORTED`); pemenuhan order gratis menunggu alur PAID/tiket pada fase berikutnya.
+- **Bukti yang tersedia:**
+  - `npm test` meloloskan validasi Guest/Member, item duplikat, perhitungan diskon, serta tes Fase 4–5.
+  - `npm run typecheck` lolos.
+  - Uji konkurensi PostgreSQL dan expiry terhadap database belum dijalankan; Fase 6 tetap perlu verifikasi DoD integrasi.
+
 ---
 
 ## 3. Daftar File Penting
@@ -193,6 +206,7 @@ Prefix: `/api/v1`
 | `DELETE` | `/api/v1/manage/events/:eventId/staff/:userId` | Bearer + `event.update` | Unassign Gate Officer |
 | `GET` | `/api/v1/events` | Publik | Cari/filter/paginasi event terbit |
 | `GET` | `/api/v1/events/:slug` | Publik | Detail event dan kategori aktif |
+| `POST` | `/api/v1/orders` | Publik / Bearer opsional | Buat order Guest atau Member dan reserve stok |
 
 ---
 
