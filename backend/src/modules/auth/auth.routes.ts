@@ -9,6 +9,7 @@ import {
   refreshSchema,
   registerSchema,
   updateMeSchema,
+  verifyEmailSchema,
 } from './auth.schemas';
 
 export const authRouter = Router();
@@ -18,6 +19,20 @@ authRouter.post(
   authLimiter,
   validate({ body: registerSchema }),
   asyncHandler(authController.register),
+);
+
+authRouter.post(
+  '/verify-email',
+  authLimiter,
+  validate({ body: verifyEmailSchema }),
+  asyncHandler(authController.verifyEmail),
+);
+
+authRouter.post(
+  '/resend-verification',
+  authLimiter,
+  authenticate,
+  asyncHandler(authController.resendVerificationEmail),
 );
 
 authRouter.post(

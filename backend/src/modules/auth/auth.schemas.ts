@@ -16,6 +16,10 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password wajib diisi'),
 });
 
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1).max(2048),
+});
+
 export const refreshSchema = z.preprocess(
   (value) => value ?? {},
   z.object({

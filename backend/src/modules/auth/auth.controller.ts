@@ -31,6 +31,22 @@ export const authController = {
     ok(res, result, 'Registrasi berhasil', 201);
   },
 
+  async verifyEmail(req: Request, res: Response) {
+    const result = await authService.verifyEmail(req.body.token);
+    ok(res, result, 'Email berhasil diverifikasi');
+  },
+
+  async resendVerificationEmail(req: Request, res: Response) {
+    const result = await authService.resendVerificationEmail(req.user!.id);
+    ok(
+      res,
+      result,
+      result.sent
+        ? 'Email verifikasi berhasil dikirim'
+        : 'Email verifikasi belum berhasil dikirim',
+    );
+  },
+
   async login(req: Request, res: Response) {
     const input = req.body as LoginInput;
     const result = await authService.login(input);

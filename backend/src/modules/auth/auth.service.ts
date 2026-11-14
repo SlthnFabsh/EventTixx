@@ -1,5 +1,8 @@
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { RoleName } from '@prisma/client';
+import { env } from '../../config/env';
+import { sendVerificationEmail } from '../../lib/mailer';
 import { prisma } from '../../lib/prisma';
 import {
   generateRefreshToken,
@@ -32,6 +35,20 @@ const formatUser = (user: {
   emailVerifiedAt: user.emailVerifiedAt,
   createdAt: user.createdAt,
 });
+
+const createEmailVerificationToken = (user: {
+  id: string;
+  email: string;
+}): string =>
+  jwt.sign(
+    { tokenType: 'email_verification', email: user.email },
+    env.JWT_REFRESH_SECRET,
+    {
+      subject: user.id,
+      audience: 'eventtixx-email-verification',
+      expiresIn: '24h',
+    },
+  );
 
 export const authService = {
   async register(input: RegisterInput) {
@@ -78,13 +95,94 @@ export const authService = {
     });
 
     const permissions = await getRolePermissions(user.roleId);
+    const verificationEmail = await sendVerificationEmail(
+      { id: user.id, name: user.name, email: user.email },
+      createEmailVerificationToken(user),
+    );
 
     return {
       user: formatUser(user),
       permissions,
       accessToken,
       refreshToken,
+      emailVerificationSent: verificationEmail.sent,
     };
+  },
+
+  async resendVerificationEmail(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, emailVerifiedAt: true },
+    });
+    if (!user) {
+      throw new AppError('USER_NOT_FOUND', 'User tidak ditemukan', 404);
+    }
+    if (user.emailVerifiedAt) {
+      throw new AppError('EMAIL_ALREADY_VERIFIED', 'Email sudah terverifikasi', 409);
+    }
+    return sendVerificationEmail(
+      { id: user.id, name: user.name, email: user.email },
+      createEmailVerificationToken(user),
+    );
+  },
+
+  async verifyEmail(token: string) {
+    let payload: string | jwt.JwtPayload;
+    try {
+      payload = jwt.verify(token, env.JWT_REFRESH_SECRET, {
+        audience: 'eventtixx-email-verification',
+      });
+    } catch (error) {
+      const code =
+        error instanceof jwt.TokenExpiredError
+          ? 'EMAIL_VERIFICATION_EXPIRED'
+          : 'EMAIL_VERIFICATION_INVALID';
+      throw new AppError(
+        code,
+        'Tautan verifikasi email tidak valid atau telah kedaluwarsa',
+        400,
+      );
+    }
+
+    if (
+      typeof payload === 'string' ||
+      typeof payload.sub !== 'string' ||
+      typeof payload.email !== 'string' ||
+      payload.tokenType !== 'email_verification'
+    ) {
+      throw new AppError(
+        'EMAIL_VERIFICATION_INVALID',
+        'Tautan verifikasi email tidak valid',
+        400,
+      );
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, email: true, emailVerifiedAt: true },
+      });
+      if (!user || user.email !== payload.email) {
+        throw new AppError(
+          'EMAIL_VERIFICATION_INVALID',
+          'Tautan verifikasi email tidak valid',
+          400,
+        );
+      }
+
+      if (!user.emailVerifiedAt) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { emailVerifiedAt: new Date() },
+        });
+      }
+
+      const claimed = await tx.order.updateMany({
+        where: { userId: null, buyerEmail: user.email },
+        data: { userId: user.id },
+      });
+      return { emailVerified: true, claimedOrders: claimed.count };
+    });
   },
 
   async login(input: LoginInput) {

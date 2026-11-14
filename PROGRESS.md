@@ -18,7 +18,8 @@ Update terakhir: November 2026.
 | **6** | Checkout & Reservasi Stok | ⚠️ Implementasi; DoD DB tertunda | Order guest/member, reserve atomik, voucher/poin, cron expiry |
 | **7** | Midtrans Sandbox + Webhook | ⚠️ Backend selesai; integrasi tertunda | Snap API, webhook signature, sync, settlement idempotent |
 | **8** | Tiket, QR & Email Otomatis | ⚠️ Backend selesai; integrasi tertunda | Tiket saat settlement, QR token, email retry, akses tiket |
-| 9–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
+| **9** | Fitur Member | ⚠️ Backend selesai; integrasi tertunda | Riwayat member, poin, voucher, verifikasi email dan klaim order |
+| 10–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
 
 ---
 
@@ -157,6 +158,18 @@ Update terakhir: November 2026.
   - `npm run typecheck` lolos.
   - Database/PostgreSQL dan SMTP belum diuji; frontend masih belum memiliki halaman tiket/QR.
 
+### FASE 9 — Fitur Member
+- **Yang dibuat:**
+  - Endpoint member paginated untuk order, detail order, tiket, dan ledger poin.
+  - `POST /api/v1/vouchers/validate` menghitung harga dari database dan tidak membuat order atau memesan stok.
+  - CRUD voucher di `/api/v1/manage/vouchers`; Event Manager dibatasi ke voucher/event miliknya, Super Admin dapat mengelola semua. DELETE menonaktifkan voucher dan perubahan dicatat di audit log.
+  - Registrasi mengirim tautan verifikasi email. `POST /api/v1/auth/verify-email` menandai alamat terverifikasi dan mengklaim order guest dengan email yang sama; akun belum terverifikasi tidak mengklaim order.
+  - Poin `EARN` memeriksa ledger untuk mencegah pemberian ganda per order.
+- **Bukti yang tersedia:**
+  - `npm test` meloloskan 14 tes unit/schema.
+  - `npm run typecheck` lolos.
+  - Database/PostgreSQL dan SMTP belum diuji; UI member belum dibuat.
+
 ---
 
 ## 3. Daftar File Penting
@@ -239,6 +252,15 @@ Prefix: `/api/v1`
 | `POST` | `/api/v1/orders/:orderCode/resend-email` | Pemilik order / `accessToken` | Kirim ulang email tiket |
 | `POST` | `/api/v1/payments/midtrans/notification` | Signature Midtrans | Proses webhook pembayaran |
 | `GET` | `/api/v1/tickets/by-token?token=` | Token akses order | Ambil tiket dan QR token |
+| `GET` | `/api/v1/me/orders` | Customer | Riwayat order paginated |
+| `GET` | `/api/v1/me/orders/:code` | Customer | Detail order milik sendiri |
+| `GET` | `/api/v1/me/tickets` | Customer | Tiket dan QR milik sendiri |
+| `GET` | `/api/v1/me/points` | Customer | Saldo dan ledger poin paginated |
+| `POST` | `/api/v1/vouchers/validate` | Publik / Customer | Hitung diskon voucher tanpa membuat order |
+| `GET/POST` | `/api/v1/manage/vouchers` | Bearer + `voucher.manage` | List atau membuat voucher |
+| `GET/PATCH/DELETE` | `/api/v1/manage/vouchers/:voucherId` | Bearer + `voucher.manage` | Detail, update, atau nonaktifkan voucher |
+| `POST` | `/api/v1/auth/verify-email` | Token verifikasi | Verifikasi email dan klaim order guest |
+| `POST` | `/api/v1/auth/resend-verification` | Bearer token | Kirim ulang tautan verifikasi |
 
 ---
 
@@ -320,12 +342,12 @@ npm run prisma:studio
 
 ---
 
-## 9. Langkah Persis Berikutnya: FASE 9
+## 9. Langkah Persis Berikutnya: FASE 10
 
-Ikuti **`docs/GUIDE.md` FASE 9 — Fitur Member**.
+Ikuti **`docs/GUIDE.md` FASE 10 — Gate Officer: API Scan**.
 
 ### Target Pengerjaan
-1. Implementasikan riwayat order, detail order, tiket, dan ledger poin untuk member.
-2. Tambahkan endpoint validasi voucher tanpa membuat order.
-3. Implementasikan klaim order guest saat email diverifikasi/register.
-4. Tambahkan CRUD voucher dan pastikan poin EARN tidak tercatat lebih dari sekali.
+1. Tampilkan event `PUBLISHED/ONGOING` yang ditugaskan kepada Gate Officer.
+2. Buat pemindaian QR dan kode manual dengan update `ACTIVE -> USED` atomik.
+3. Catat seluruh hasil scan serta event, statistik check-in, dan petugas sebelumnya.
+4. Tambahkan rate limit scan yang tetap mendukung pemindaian cepat.

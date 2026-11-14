@@ -202,3 +202,66 @@ export const sendTicketEmail = async (
 
   return { sent: false, attempts: 3 };
 };
+
+export const sendVerificationEmail = async (
+  user: { id: string; name: string; email: string },
+  token: string,
+): Promise<{ sent: boolean; attempts: number }> => {
+  const subject = 'Verifikasi email EventTixx';
+  const verificationUrl = `${env.APP_URL.replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(token)}`;
+  const html = `
+    <!doctype html>
+    <html lang="id">
+      <body style="font-family:Arial,sans-serif;color:#111827">
+        <h1>Verifikasi email</h1>
+        <p>Halo ${escapeHtml(user.name)}, klik tautan berikut untuk memverifikasi email Anda.</p>
+        <p><a href="${escapeHtml(verificationUrl)}">Verifikasi email EventTixx</a></p>
+        <p>Tautan berlaku selama 24 jam. Abaikan email ini jika Anda tidak membuat akun.</p>
+      </body>
+    </html>`;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const emailLog = await prisma.emailLog.create({
+      data: {
+        toEmail: user.email,
+        type: 'VERIFY_EMAIL',
+        subject,
+        status: EmailStatus.QUEUED,
+      },
+    });
+
+    try {
+      const transporter = createTransporter();
+      await transporter.sendMail({
+        from: env.MAIL_FROM,
+        to: user.email,
+        subject,
+        html,
+      });
+    } catch (error) {
+      const errorMessage = getSafeErrorMessage(error);
+      await prisma.emailLog.update({
+        where: { id: emailLog.id },
+        data: { status: EmailStatus.FAILED, errorMessage },
+      });
+      console.error(
+        `Verification email attempt ${attempt} failed for user ${user.id}:`,
+        error instanceof Error ? error.name : 'Unknown error',
+      );
+      if (attempt < 3) await delay(attempt * 500);
+      continue;
+    }
+
+    await prisma.emailLog.update({
+      where: { id: emailLog.id },
+      data: {
+        status: EmailStatus.SENT,
+        sentAt: new Date(),
+        errorMessage: null,
+      },
+    });
+    return { sent: true, attempts: attempt };
+  }
+
+  return { sent: false, attempts: 3 };
+};

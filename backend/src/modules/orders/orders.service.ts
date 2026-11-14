@@ -616,6 +616,15 @@ export const completeOrderPayment = async (
     select: { role: { select: { name: true } } },
   });
   if (member?.role.name !== RoleName.CUSTOMER) return;
+  const earnedTransaction = await tx.pointTransaction.findFirst({
+    where: {
+      userId: order.userId,
+      orderId: order.id,
+      type: PointType.EARN,
+    },
+    select: { id: true },
+  });
+  if (earnedTransaction) return;
 
   const pointsEarned = Math.floor(
     order.totalAmount / POINT_EARN_PER_RUPIAH,

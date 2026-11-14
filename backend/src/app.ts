@@ -27,6 +27,11 @@ import {
   orderTicketsRouter,
   ticketsRouter,
 } from './modules/tickets/tickets.routes';
+import { membersRouter } from './modules/members/members.routes';
+import {
+  voucherManagementRouter,
+  vouchersRouter,
+} from './modules/vouchers/vouchers.routes';
 
 export const app = express();
 
@@ -86,6 +91,9 @@ app.use('/api/v1/orders', orderPaymentsRouter);
 app.use('/api/v1/orders', orderTicketsRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/tickets', ticketsRouter);
+app.use('/api/v1/me', membersRouter);
+app.use('/api/v1/vouchers', vouchersRouter);
+app.use('/api/v1/manage/vouchers', voucherManagementRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
