@@ -32,6 +32,7 @@ import {
   voucherManagementRouter,
   vouchersRouter,
 } from './modules/vouchers/vouchers.routes';
+import { gateRouter } from './modules/gate/gate.routes';
 
 export const app = express();
 
@@ -94,6 +95,7 @@ app.use('/api/v1/tickets', ticketsRouter);
 app.use('/api/v1/me', membersRouter);
 app.use('/api/v1/vouchers', vouchersRouter);
 app.use('/api/v1/manage/vouchers', voucherManagementRouter);
+app.use('/api/v1/gate', gateRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

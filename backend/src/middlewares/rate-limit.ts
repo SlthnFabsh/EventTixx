@@ -11,6 +11,7 @@ export const apiLimiter = rateLimit({
   limit: 300,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  skip: (req) => /^\/v1\/gate\/scan(?:-manual)?$/.test(req.path),
   handler: rateLimitHandler,
 });
 
@@ -20,5 +21,13 @@ export const authLimiter = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   skipSuccessfulRequests: true,
+  handler: rateLimitHandler,
+});
+
+export const scanLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 1800,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
   handler: rateLimitHandler,
 });

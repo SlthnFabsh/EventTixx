@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/events.service.test.ts test/catalog.service.test.ts test/orders.service.test.ts test/payments.logic.test.ts test/tickets.service.test.ts test/vouchers.schemas.test.ts",
+    "test": "tsx --test test/events.service.test.ts test/catalog.service.test.ts test/orders.service.test.ts test/payments.logic.test.ts test/tickets.service.test.ts test/vouchers.schemas.test.ts test/gate.schemas.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",

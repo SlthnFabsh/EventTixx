@@ -19,7 +19,8 @@ Update terakhir: November 2026.
 | **7** | Midtrans Sandbox + Webhook | ⚠️ Backend selesai; integrasi tertunda | Snap API, webhook signature, sync, settlement idempotent |
 | **8** | Tiket, QR & Email Otomatis | ⚠️ Backend selesai; integrasi tertunda | Tiket saat settlement, QR token, email retry, akses tiket |
 | **9** | Fitur Member | ⚠️ Backend selesai; integrasi tertunda | Riwayat member, poin, voucher, verifikasi email dan klaim order |
-| 10–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
+| **10** | Gate Officer: API Scan | ⚠️ Backend selesai; integrasi DB tertunda | Scan QR/manual atomik, hasil scan dan statistik |
+| 11–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
 
 ---
 
@@ -170,6 +171,17 @@ Update terakhir: November 2026.
   - `npm run typecheck` lolos.
   - Database/PostgreSQL dan SMTP belum diuji; UI member belum dibuat.
 
+### FASE 10 — Gate Officer: API Scan
+- **Yang dibuat:**
+  - `GET /api/v1/gate/events` membatasi daftar ke event `PUBLISHED/ONGOING` yang ditugaskan kepada officer.
+  - `POST /api/v1/gate/scan` dan `/scan-manual` memeriksa assignment, mencatat semua hasil, dan memakai conditional `updateMany` untuk mencegah tiket dipakai dua kali.
+  - Hasil `ALREADY_USED` menyertakan waktu check-in dan nama petugas pertama; statistik event menghitung tiket aktif/terpakai.
+  - Endpoint scan memiliki rate limit longgar terpisah dari limiter API umum.
+- **Bukti yang tersedia:**
+  - `npm test` meloloskan tes trim QR dan validasi kode tiket; total 16 tes lulus.
+  - `npm run typecheck` lolos.
+  - Uji konkurensi scan terhadap PostgreSQL belum dijalankan.
+
 ---
 
 ## 3. Daftar File Penting
@@ -261,6 +273,10 @@ Prefix: `/api/v1`
 | `GET/PATCH/DELETE` | `/api/v1/manage/vouchers/:voucherId` | Bearer + `voucher.manage` | Detail, update, atau nonaktifkan voucher |
 | `POST` | `/api/v1/auth/verify-email` | Token verifikasi | Verifikasi email dan klaim order guest |
 | `POST` | `/api/v1/auth/resend-verification` | Bearer token | Kirim ulang tautan verifikasi |
+| `GET` | `/api/v1/gate/events` | Bearer + `ticket.scan` | Event yang ditugaskan |
+| `POST` | `/api/v1/gate/scan` | Bearer + `ticket.scan` | Scan QR token |
+| `POST` | `/api/v1/gate/scan-manual` | Bearer + `ticket.scan` | Validasi kode tiket manual |
+| `GET` | `/api/v1/gate/events/:eventId/stats` | Bearer + `ticket.scan` | Statistik check-in event |
 
 ---
 
@@ -342,12 +358,12 @@ npm run prisma:studio
 
 ---
 
-## 9. Langkah Persis Berikutnya: FASE 10
+## 9. Langkah Persis Berikutnya: FASE 11
 
-Ikuti **`docs/GUIDE.md` FASE 10 — Gate Officer: API Scan**.
+Ikuti **`docs/GUIDE.md` FASE 11 — Super Admin: Monitoring**.
 
 ### Target Pengerjaan
-1. Tampilkan event `PUBLISHED/ONGOING` yang ditugaskan kepada Gate Officer.
-2. Buat pemindaian QR dan kode manual dengan update `ACTIVE -> USED` atomik.
-3. Catat seluruh hasil scan serta event, statistik check-in, dan petugas sebelumnya.
-4. Tambahkan rate limit scan yang tetap mendukung pemindaian cepat.
+1. Tambahkan monitoring read-only untuk order dan dashboard revenue/statistik.
+2. Batasi semua endpoint monitoring ke Super Admin.
+3. Implementasikan admin roles/permissions dan invalidasi cache RBAC.
+4. Tambahkan daftar audit log/email log dan resend email admin.
