@@ -17,6 +17,7 @@ import { AppError } from './utils/app-error';
 import { asyncHandler } from './utils/async-handler';
 import { ok } from './utils/response';
 import { eventsManagementRouter } from './modules/events/events.routes';
+import { publicEventsRouter } from './modules/events/catalog.routes';
 
 export const app = express();
 
@@ -69,6 +70,7 @@ app.patch(
 
 // Admin staff management
 app.use('/api/v1/admin/users', adminUsersRouter);
+app.use('/api/v1/events', publicEventsRouter);
 app.use('/api/v1/manage/events', eventsManagementRouter);
 
 app.use(notFoundHandler);

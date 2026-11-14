@@ -14,7 +14,8 @@ Update terakhir: November 2026.
 | **2** | Fondasi Backend | ✅ Selesai | Express TS, Zod env, rate limit, CORS, AppError, response standard |
 | **3** | Auth & RBAC | ✅ Selesai | JWT 15m, Refresh token hash + rotasi, RBAC cache, /auth/*, /admin/users staff |
 | **4** | Event & Kategori Tiket | ✅ Selesai | CRUD event/kategori, owner guard, slug unik, state machine, staff assignment, audit log |
-| 5–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
+| **5** | Katalog Publik | ✅ Selesai | Listing/filter/paginasi event terbit, detail kategori dan status penjualan |
+| 6–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
 
 ---
 
@@ -106,6 +107,16 @@ Update terakhir: November 2026.
   - `npm run typecheck` lolos.
   - Tes integrasi terhadap database belum dijalankan.
 
+### FASE 5 — Katalog Publik
+- **Yang dibuat:**
+  - `GET /api/v1/events`: hanya event `PUBLISHED` dan belum dihapus, dengan filter `q`, `city`, rentang tanggal, pagination, dan urutan `startAt`.
+  - `GET /api/v1/events/:slug`: detail event dengan kategori aktif, jumlah tersedia (`quota - sold - reserved`), dan `saleState`.
+  - Response memilih field publik eksplisit; tidak menyertakan `createdBy`, staff, atau penghitung internal `sold`/`reserved`.
+- **Bukti DoD:**
+  - `npm test` meloloskan tes status penjualan dan bentuk response publik.
+  - `npm run typecheck` lolos.
+  - Tes integrasi endpoint terhadap database belum dijalankan.
+
 ---
 
 ## 3. Daftar File Penting
@@ -180,6 +191,8 @@ Prefix: `/api/v1`
 | `PATCH/DELETE` | `/api/v1/manage/events/:eventId/categories/:categoryId` | Bearer + `ticket_category.manage` | Update atau nonaktifkan kategori |
 | `POST` | `/api/v1/manage/events/:eventId/staff` | Bearer + `event.update` | Assign Gate Officer |
 | `DELETE` | `/api/v1/manage/events/:eventId/staff/:userId` | Bearer + `event.update` | Unassign Gate Officer |
+| `GET` | `/api/v1/events` | Publik | Cari/filter/paginasi event terbit |
+| `GET` | `/api/v1/events/:slug` | Publik | Detail event dan kategori aktif |
 
 ---
 
