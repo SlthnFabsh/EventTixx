@@ -16,9 +16,12 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password wajib diisi'),
 });
 
-export const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token diperlukan').optional(),
-});
+export const refreshSchema = z.preprocess(
+  (value) => value ?? {},
+  z.object({
+    refreshToken: z.string().min(1, 'Refresh token diperlukan').optional(),
+  }),
+);
 
 export const updateMeSchema = z
   .object({

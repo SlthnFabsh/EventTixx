@@ -143,7 +143,8 @@ export const authService = {
       include: { user: { include: { role: true } } },
     });
 
-    if (!record || record.revokedAt !== null || record.expiresAt < new Date()) {
+    const now = new Date();
+    if (!record || record.revokedAt !== null || record.expiresAt <= now) {
       throw new AppError('TOKEN_INVALID', 'Refresh token tidak valid atau telah kedaluwarsa', 401);
     }
 
@@ -151,22 +152,35 @@ export const authService = {
       throw new AppError('ACCOUNT_SUSPENDED', 'Akun telah ditangguhkan', 403);
     }
 
-    // Rotasi refresh token: cabut token lama
-    await prisma.refreshToken.update({
-      where: { id: record.id },
-      data: { revokedAt: new Date() },
-    });
-
-    // Buat token baru
     const { token: nextRefreshToken, tokenHash: nextHash, expiresAt: nextExpiresAt } =
       generateRefreshToken();
 
-    await prisma.refreshToken.create({
-      data: {
-        userId: record.userId,
-        tokenHash: nextHash,
-        expiresAt: nextExpiresAt,
-      },
+    await prisma.$transaction(async (tx) => {
+      const rotatedAt = new Date();
+      const revoked = await tx.refreshToken.updateMany({
+        where: {
+          id: record.id,
+          revokedAt: null,
+          expiresAt: { gt: rotatedAt },
+        },
+        data: { revokedAt: rotatedAt },
+      });
+
+      if (revoked.count !== 1) {
+        throw new AppError(
+          'TOKEN_INVALID',
+          'Refresh token tidak valid atau telah kedaluwarsa',
+          401,
+        );
+      }
+
+      await tx.refreshToken.create({
+        data: {
+          userId: record.userId,
+          tokenHash: nextHash,
+          expiresAt: nextExpiresAt,
+        },
+      });
     });
 
     const nextAccessToken = signAccessToken({
@@ -185,14 +199,10 @@ export const authService = {
   async logout(rawToken?: string) {
     if (!rawToken) return;
     const tokenHash = hashToken(rawToken);
-    await prisma.refreshToken
-      .update({
-        where: { tokenHash },
-        data: { revokedAt: new Date() },
-      })
-      .catch(() => {
-        // Abaikan jika token tidak ditemukan
-      });
+    await prisma.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
   },
 
   async getMe(userId: string) {

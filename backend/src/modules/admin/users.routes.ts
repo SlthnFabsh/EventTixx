@@ -23,6 +23,17 @@ export const createStaffSchema = z.object({
   }),
 });
 
+const listUsersQuerySchema = z.object({
+  role: z
+    .enum([
+      RoleName.SUPER_ADMIN,
+      RoleName.EVENT_MANAGER,
+      RoleName.GATE_OFFICER,
+      RoleName.CUSTOMER,
+    ])
+    .optional(),
+});
+
 export const adminUsersRouter = Router();
 
 adminUsersRouter.use(authenticate);
@@ -96,8 +107,9 @@ adminUsersRouter.post(
 adminUsersRouter.get(
   '/',
   authorize('user.manage'),
+  validate({ query: listUsersQuerySchema }),
   asyncHandler(async (req, res) => {
-    const roleQuery = req.query.role as RoleName | undefined;
+    const { role: roleQuery } = req.query as z.infer<typeof listUsersQuerySchema>;
 
     const users = await prisma.user.findMany({
       where: roleQuery ? { role: { name: roleQuery } } : undefined,

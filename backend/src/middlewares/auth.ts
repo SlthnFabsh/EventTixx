@@ -85,9 +85,15 @@ export const optionalAuth: RequestHandler = async (req, _res, next) => {
 
     try {
       req.user = await resolveUserFromToken(token);
-    } catch {
-      // Token tidak valid/kedaluwarsa pada optionalAuth dianggap sebagai Guest
-      req.user = undefined;
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'TOKEN_EXPIRED') {
+        req.user = undefined;
+        next();
+        return;
+      }
+
+      next(error);
+      return;
     }
     next();
   } catch (error) {
