@@ -13,7 +13,7 @@ Update terakhir: November 2026.
 | **1** | Database PostgreSQL + Prisma | ✅ Selesai | Schema ERD §5, 2 migration, CHECK constraints, seed 4 role, health check OK |
 | **2** | Fondasi Backend | ✅ Selesai | Express TS, Zod env, rate limit, CORS, AppError, response standard |
 | **3** | Auth & RBAC | ✅ Selesai | JWT 15m, Refresh token hash + rotasi, RBAC cache, /auth/*, /admin/users staff |
-| **4** | Event & Kategori Tiket | ⏳ **BERIKUTNYA** | CRUD event & kategori, IDOR check, slug, state machine, assign gate officer |
+| **4** | Event & Kategori Tiket | ✅ Selesai | CRUD event/kategori, owner guard, slug unik, state machine, staff assignment, audit log |
 | 5–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
 
 ---
@@ -91,6 +91,21 @@ Update terakhir: November 2026.
   - Akun dengan status `SUSPENDED` ditolak saat login (HTTP 403 `ACCOUNT_SUSPENDED`).
   - `npm run typecheck` lolos tanpa error.
 
+### FASE 4 — Event & Kategori Tiket
+- **Yang dibuat:**
+  - `backend/src/modules/events/events.routes.ts`, `events.service.ts`, dan `events.schemas.ts`.
+  - `/api/v1/manage/events`: list/detail event, create, update, dan soft delete.
+  - Event Manager hanya dapat mengakses event dengan `createdById` miliknya; Super Admin dapat mengakses semua event.
+  - Slug dibuat dari judul dan diberi suffix angka saat bentrok; perubahan status mengikuti state machine.
+  - Publish mensyaratkan kategori aktif; event dengan order `PAID` tidak dapat di-soft-delete.
+  - CRUD kategori tiket memvalidasi `price`, `maxPerOrder`, dan `quota >= sold + reserved`. DELETE menonaktifkan kategori (`isActive=false`) agar histori order tetap terjaga.
+  - Assign/unassign Gate Officer memvalidasi role `GATE_OFFICER`.
+  - Aksi create/update/delete event dan kategori dicatat di `audit_logs`.
+- **Bukti DoD:**
+  - `npm test` meloloskan tes owner guard/IDOR dan batas kuota terhadap tiket terjual + ter-reserve.
+  - `npm run typecheck` lolos.
+  - Tes integrasi terhadap database belum dijalankan.
+
 ---
 
 ## 3. Daftar File Penting
@@ -158,6 +173,13 @@ Prefix: `/api/v1`
 | `PATCH` | `/api/v1/me` | Bearer token | Alias untuk `/api/v1/auth/me` |
 | `POST` | `/api/v1/admin/users` | Bearer + `user.manage` | Buat akun `EVENT_MANAGER` / `GATE_OFFICER` |
 | `GET` | `/api/v1/admin/users` | Bearer + `user.manage` | List users (bisa filter `?role=`) |
+| `GET` | `/api/v1/manage/events` | Bearer + `event.create` | List event yang dapat dikelola |
+| `POST` | `/api/v1/manage/events` | Bearer + `event.create` | Buat event draft |
+| `GET/PATCH/DELETE` | `/api/v1/manage/events/:eventId` | Bearer + `event.update` / `event.delete` | Detail, update, atau soft delete event |
+| `GET/POST` | `/api/v1/manage/events/:eventId/categories` | Bearer + `ticket_category.manage` | List atau buat kategori |
+| `PATCH/DELETE` | `/api/v1/manage/events/:eventId/categories/:categoryId` | Bearer + `ticket_category.manage` | Update atau nonaktifkan kategori |
+| `POST` | `/api/v1/manage/events/:eventId/staff` | Bearer + `event.update` | Assign Gate Officer |
+| `DELETE` | `/api/v1/manage/events/:eventId/staff/:userId` | Bearer + `event.update` | Unassign Gate Officer |
 
 ---
 

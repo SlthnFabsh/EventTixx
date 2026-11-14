@@ -16,6 +16,7 @@ import { updateMeSchema } from './modules/auth/auth.schemas';
 import { AppError } from './utils/app-error';
 import { asyncHandler } from './utils/async-handler';
 import { ok } from './utils/response';
+import { eventsManagementRouter } from './modules/events/events.routes';
 
 export const app = express();
 
@@ -68,6 +69,7 @@ app.patch(
 
 // Admin staff management
 app.use('/api/v1/admin/users', adminUsersRouter);
+app.use('/api/v1/manage/events', eventsManagementRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
