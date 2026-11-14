@@ -20,7 +20,8 @@ Update terakhir: November 2026.
 | **8** | Tiket, QR & Email Otomatis | ⚠️ Backend selesai; integrasi tertunda | Tiket saat settlement, QR token, email retry, akses tiket |
 | **9** | Fitur Member | ⚠️ Backend selesai; integrasi tertunda | Riwayat member, poin, voucher, verifikasi email dan klaim order |
 | **10** | Gate Officer: API Scan | ⚠️ Backend selesai; integrasi DB tertunda | Scan QR/manual atomik, hasil scan dan statistik |
-| 11–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
+| **11** | Super Admin: Monitoring | ✅ Backend selesai; integrasi DB tertunda | Monitoring order, dashboard, user, role/permission, email log, audit log |
+| 12–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
 
 ---
 
@@ -182,6 +183,21 @@ Update terakhir: November 2026.
   - `npm run typecheck` lolos.
   - Uji konkurensi scan terhadap PostgreSQL belum dijalankan.
 
+### FASE 11 — Super Admin: Monitoring
+- **Yang dibuat:**
+  - Semua route `/api/v1/admin/*` memakai autentikasi dan guard role `SUPER_ADMIN`; endpoint orders tetap read-only.
+  - List order paginated dengan filter status/event/tanggal/tipe pembayaran dan pencarian kode/email/telepon; detail menampilkan item, pembayaran, tiket, serta email log tanpa mengekspos token akses order atau token QR.
+  - Dashboard menampilkan total order `PAID`, jumlah order per status, tiket terjual, lima event dengan tiket terbanyak, dan tren revenue/order 30 hari.
+  - CRUD user mencakup list/detail/create staff/update termasuk password, dan soft-delete dengan menangguhkan akun; Super Admin tidak bisa menurunkan atau menangguhkan akunnya sendiri.
+  - Role yang sudah ada dapat dilihat dan diperbarui termasuk assignment permission; permission dapat dibuat, dilihat, diubah, dan dihapus. Perubahan relasi role/permission menginvalidasi cache RBAC.
+  - Email logs dapat difilter dan email tiket/verifikasi dapat dikirim ulang; audit logs dapat difilter berdasarkan aksi, entitas, aktor, dan tanggal.
+- **Bukti yang tersedia:**
+  - `npm run typecheck` lolos.
+  - `npm test` lulus: 18 tes, termasuk validasi filter/paginasi admin dan role/permission.
+  - Tes PostgreSQL/integrasi untuk dashboard dan email resend belum dijalankan.
+  - `RoleName` adalah enum Prisma: API hanya mengelola role yang telah ditentukan; tambah/hapus nama role memerlukan migrasi skema.
+  - Tidak ada endpoint admin untuk mengubah status pembayaran.
+
 ---
 
 ## 3. Daftar File Penting
@@ -200,6 +216,7 @@ backend/
 │   │   └── env.ts
 │   ├── lib/
 │   │   ├── jwt.ts
+│   │   ├── email-verification.ts
 │   │   ├── prisma.ts
 │   │   └── rbac.ts
 │   ├── middlewares/
@@ -207,9 +224,13 @@ backend/
 │   │   ├── cors.ts
 │   │   ├── error-handler.ts # errorHandler, notFoundHandler
 │   │   ├── rate-limit.ts    # apiLimiter, authLimiter
+│   │   ├── super-admin.ts   # guard eksplisit role SUPER_ADMIN
 │   │   └── validate.ts      # validate({ body, query, params })
 │   ├── modules/
 │   │   ├── admin/
+│   │   │   ├── admin.routes.ts
+│   │   │   ├── admin.schemas.ts
+│   │   │   ├── admin.service.ts
 │   │   │   └── users.routes.ts
 │   │   └── auth/
 │   │       ├── auth.controller.ts

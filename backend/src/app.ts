@@ -10,6 +10,7 @@ import { apiLimiter } from './middlewares/rate-limit';
 import { authRouter } from './modules/auth/auth.routes';
 import { authController } from './modules/auth/auth.controller';
 import { adminUsersRouter } from './modules/admin/users.routes';
+import { adminRouter } from './modules/admin/admin.routes';
 import { authenticate } from './middlewares/auth';
 import { validate } from './middlewares/validate';
 import { updateMeSchema } from './modules/auth/auth.schemas';
@@ -85,6 +86,7 @@ app.patch(
 
 // Admin staff management
 app.use('/api/v1/admin/users', adminUsersRouter);
+app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/events', publicEventsRouter);
 app.use('/api/v1/manage/events', eventsManagementRouter);
 app.use('/api/v1/orders', ordersRouter);

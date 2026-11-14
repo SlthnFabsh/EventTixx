@@ -390,7 +390,7 @@ const png = await QRCode.toBuffer(qrToken, { width: 400, margin: 2, errorCorrect
 1. `GET /admin/orders` — filter `status`, `eventId`, `from/to`, `paymentType`, search `q` (orderCode/email/telepon), paginated. **Read-only.**
 2. `GET /admin/orders/:id` — order + items + payments (termasuk `rawNotification`) + tickets + email logs.
 3. `GET /admin/dashboard` — total revenue (order PAID), jumlah order per status, tiket terjual, top event, tren 30 hari (group by date).
-4. `CRUD /admin/users`, `/admin/roles`, `/admin/permissions` (assign permission ke role + invalidasi cache).
+4. `CRUD /admin/users`, `/admin/roles`, `/admin/permissions` (assign permission ke role + invalidasi cache). Nama role tetap mengikuti enum Prisma; role baru tidak dapat dibuat tanpa migrasi.
 5. `GET /admin/email-logs` + resend, `GET /admin/audit-logs`.
 6. Pastikan **tidak ada** endpoint yang mengubah status pembayaran.
 

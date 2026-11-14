@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { RoleName } from '@prisma/client';
-import { env } from '../../config/env';
+import {
+  createEmailVerificationToken,
+  readEmailVerificationToken,
+} from '../../lib/email-verification';
 import { sendVerificationEmail } from '../../lib/mailer';
 import { prisma } from '../../lib/prisma';
 import {
@@ -35,20 +37,6 @@ const formatUser = (user: {
   emailVerifiedAt: user.emailVerifiedAt,
   createdAt: user.createdAt,
 });
-
-const createEmailVerificationToken = (user: {
-  id: string;
-  email: string;
-}): string =>
-  jwt.sign(
-    { tokenType: 'email_verification', email: user.email },
-    env.JWT_REFRESH_SECRET,
-    {
-      subject: user.id,
-      audience: 'eventtixx-email-verification',
-      expiresIn: '24h',
-    },
-  );
 
 export const authService = {
   async register(input: RegisterInput) {
@@ -127,39 +115,11 @@ export const authService = {
   },
 
   async verifyEmail(token: string) {
-    let payload: string | jwt.JwtPayload;
-    try {
-      payload = jwt.verify(token, env.JWT_REFRESH_SECRET, {
-        audience: 'eventtixx-email-verification',
-      });
-    } catch (error) {
-      const code =
-        error instanceof jwt.TokenExpiredError
-          ? 'EMAIL_VERIFICATION_EXPIRED'
-          : 'EMAIL_VERIFICATION_INVALID';
-      throw new AppError(
-        code,
-        'Tautan verifikasi email tidak valid atau telah kedaluwarsa',
-        400,
-      );
-    }
-
-    if (
-      typeof payload === 'string' ||
-      typeof payload.sub !== 'string' ||
-      typeof payload.email !== 'string' ||
-      payload.tokenType !== 'email_verification'
-    ) {
-      throw new AppError(
-        'EMAIL_VERIFICATION_INVALID',
-        'Tautan verifikasi email tidak valid',
-        400,
-      );
-    }
+    const payload = readEmailVerificationToken(token);
 
     return prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
-        where: { id: payload.sub },
+        where: { id: payload.userId },
         select: { id: true, email: true, emailVerifiedAt: true },
       });
       if (!user || user.email !== payload.email) {
