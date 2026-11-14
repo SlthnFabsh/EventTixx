@@ -16,7 +16,8 @@ Update terakhir: November 2026.
 | **4** | Event & Kategori Tiket | ✅ Selesai | CRUD event/kategori, owner guard, slug unik, state machine, staff assignment, audit log |
 | **5** | Katalog Publik | ✅ Selesai | Listing/filter/paginasi event terbit, detail kategori dan status penjualan |
 | **6** | Checkout & Reservasi Stok | ⚠️ Implementasi; DoD DB tertunda | Order guest/member, reserve atomik, voucher/poin, cron expiry |
-| 7–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
+| **7** | Midtrans Sandbox + Webhook | ⚠️ Backend selesai; integrasi tertunda | Snap API, webhook signature, sync, settlement idempotent |
+| 8–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
 
 ---
 
@@ -130,6 +131,19 @@ Update terakhir: November 2026.
   - `npm run typecheck` lolos.
   - Uji konkurensi PostgreSQL dan expiry terhadap database belum dijalankan; Fase 6 tetap perlu verifikasi DoD integrasi.
 
+### FASE 7 — Midtrans Sandbox + Webhook
+- **Yang dibuat:**
+  - `POST /api/v1/orders/:orderCode/pay` membuat atau menggunakan ulang transaksi Snap; akses order memakai bearer token atau `accessToken`.
+  - `POST /api/v1/payments/midtrans/notification` memverifikasi signature SHA-512 dengan perbandingan constant-time sebelum memproses notifikasi.
+  - `POST /api/v1/orders/:orderCode/sync` mengambil status Midtrans dan meneruskannya ke `handleMidtransStatus`, service yang sama dengan webhook.
+  - Settlement mengubah order dan reservasi stok dalam satu transaksi; poin member hanya diberikan pada transisi pertama ke `PAID`.
+  - Notifikasi duplikat tidak menggandakan stok/poin. Pembayaran settled setelah order terminal dicatat untuk rekonsiliasi/refund manual; order tidak diaktifkan kembali.
+- **Bukti yang tersedia:**
+  - `npm test` meloloskan tes signature, mapping status, status settlement yang monoton, dan aksi idempoten.
+  - `npm run typecheck` lolos.
+  - Database/PostgreSQL dan Midtrans Sandbox belum diuji; kredensial `.env` tidak dibaca.
+  - UI Snap belum terhubung karena frontend saat ini masih berupa starter Vite dan belum memiliki alur checkout/status order.
+
 ---
 
 ## 3. Daftar File Penting
@@ -207,6 +221,9 @@ Prefix: `/api/v1`
 | `GET` | `/api/v1/events` | Publik | Cari/filter/paginasi event terbit |
 | `GET` | `/api/v1/events/:slug` | Publik | Detail event dan kategori aktif |
 | `POST` | `/api/v1/orders` | Publik / Bearer opsional | Buat order Guest atau Member dan reserve stok |
+| `POST` | `/api/v1/orders/:orderCode/pay` | Pemilik order / `accessToken` | Buat atau ambil ulang transaksi Snap |
+| `POST` | `/api/v1/orders/:orderCode/sync` | Pemilik order / `accessToken` | Sinkronkan status pembayaran ke Midtrans |
+| `POST` | `/api/v1/payments/midtrans/notification` | Signature Midtrans | Proses webhook pembayaran |
 
 ---
 
@@ -288,28 +305,12 @@ npm run prisma:studio
 
 ---
 
-## 9. Langkah Persis Berikutnya: FASE 4
+## 9. Langkah Persis Berikutnya: FASE 8
 
-Ikuti **`docs/GUIDE.md` FASE 4 — Event & Kategori Tiket (Event Manager)**.
+Ikuti **`docs/GUIDE.md` FASE 8 — Tiket, QR & Email Otomatis**.
 
 ### Target Pengerjaan
-1. **CRUD Event (`/api/v1/manage/events`):**
-   - Guard: `authenticate` + permission `event.create`, `event.update`, `event.delete`.
-   - **IDOR Check Kritis:** Event Manager hanya boleh mengubah/menghapus event miliknya (`createdById === req.user.id`). Super Admin boleh mengelola seluruh event.
-2. **Slug Otomatis:**
-   - Generate slug unik dari judul (kebab-case, hilangkan karakter non-alfanumerik, tambahkan suffix angka bila terjadi tabrakan).
-3. **State Machine Event:**
-   - Transisi: `DRAFT -> PUBLISHED -> ONGOING -> FINISHED`.
-   - Transisi ke `PUBLISHED` **wajib** memiliki minimal 1 kategori tiket aktif.
-   - Status `CANCELLED` dapat dipicu kapan saja dari status aktif.
-4. **CRUD Kategori Tiket (`/api/v1/manage/events/:eventId/categories`):**
-   - Guard: permission `ticket_category.manage` + cek kepemilikan event.
-   - Validasi: `quota >= sold + reserved`, `price >= 0`, `maxPerOrder >= 1`.
-5. **Soft Delete Event:**
-   - Set `deletedAt = new Date()`.
-   - **Tolak penghapusan** bila terdapat order dengan status `PAID`.
-6. **Assign / Unassign Gate Officer (`/api/v1/manage/events/:eventId/staff`):**
-   - Menambahkan dan menghapus relasi di tabel `event_staff`.
-   - Validasi bahwa user yang di-assign memiliki role `GATE_OFFICER`.
-7. **Pencatatan Audit Log:**
-   - Tulis entri di tabel `audit_logs` untuk aksi create, update, dan delete event/kategori tiket.
+1. Generate tiket dan QR secara transaksional untuk setiap item order yang berubah ke `PAID`.
+2. Tambahkan endpoint akses tiket berdasarkan `accessToken`.
+3. Implementasikan email ticketing dan audit `email_logs`; kegagalan email tidak boleh membatalkan pembayaran.
+4. Lengkapi/verifikasi integrasi Fase 7 di sandbox (webhook, UI Snap, status sinkron).

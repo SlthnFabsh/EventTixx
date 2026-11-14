@@ -11,6 +11,7 @@ import { nanoid } from 'nanoid';
 import {
   MAX_POINT_DISCOUNT_RATIO,
   ORDER_EXPIRY_MINUTES,
+  POINT_EARN_PER_RUPIAH,
   POINT_VALUE_RUPIAH,
 } from '../../config/constants';
 import { prisma } from '../../lib/prisma';
@@ -496,6 +497,133 @@ export const ordersService = {
   },
 };
 
+type PendingOrderResources = {
+  id: string;
+  orderCode: string;
+  userId: string | null;
+  pointsUsed: number;
+  totalAmount?: number;
+  items: Array<{ ticketCategoryId: string; quantity: number }>;
+  voucherRedemption: { voucherId: string } | null;
+};
+
+export const releaseOrderResources = async (
+  tx: Prisma.TransactionClient,
+  order: PendingOrderResources,
+): Promise<void> => {
+  for (const item of order.items) {
+    const released = await tx.ticketCategory.updateMany({
+      where: {
+        id: item.ticketCategoryId,
+        reserved: { gte: item.quantity },
+      },
+      data: { reserved: { decrement: item.quantity } },
+    });
+    if (released.count !== 1) {
+      throw new AppError(
+        'RESERVATION_INCONSISTENT',
+        `Reservasi stok untuk order ${order.orderCode} tidak konsisten`,
+        500,
+      );
+    }
+  }
+
+  if (order.pointsUsed > 0 && order.userId) {
+    const user = await tx.user.update({
+      where: { id: order.userId },
+      data: { pointBalance: { increment: order.pointsUsed } },
+      select: { pointBalance: true },
+    });
+    await tx.pointTransaction.create({
+      data: {
+        userId: order.userId,
+        orderId: order.id,
+        type: PointType.REFUND,
+        points: order.pointsUsed,
+        balanceAfter: user.pointBalance,
+        note: `Pengembalian poin untuk order ${order.orderCode}`,
+      },
+    });
+  }
+
+  if (order.voucherRedemption) {
+    await tx.voucherRedemption.delete({
+      where: { orderId: order.id },
+    });
+    const voucher = await tx.voucher.updateMany({
+      where: {
+        id: order.voucherRedemption.voucherId,
+        used: { gt: 0 },
+      },
+      data: { used: { decrement: 1 } },
+    });
+    if (voucher.count !== 1) {
+      throw new AppError(
+        'VOUCHER_USAGE_INCONSISTENT',
+        `Pemakaian voucher untuk order ${order.orderCode} tidak konsisten`,
+        500,
+      );
+    }
+  }
+};
+
+export const completeOrderPayment = async (
+  tx: Prisma.TransactionClient,
+  order: PendingOrderResources & { totalAmount: number },
+): Promise<void> => {
+  for (const item of order.items) {
+    const completed = await tx.ticketCategory.updateMany({
+      where: {
+        id: item.ticketCategoryId,
+        reserved: { gte: item.quantity },
+      },
+      data: {
+        reserved: { decrement: item.quantity },
+        sold: { increment: item.quantity },
+      },
+    });
+    if (completed.count !== 1) {
+      throw new AppError(
+        'RESERVATION_INCONSISTENT',
+        `Reservasi stok untuk order ${order.orderCode} tidak konsisten`,
+        500,
+      );
+    }
+  }
+
+  if (!order.userId) return;
+  const member = await tx.user.findUnique({
+    where: { id: order.userId },
+    select: { role: { select: { name: true } } },
+  });
+  if (member?.role.name !== RoleName.CUSTOMER) return;
+
+  const pointsEarned = Math.floor(
+    order.totalAmount / POINT_EARN_PER_RUPIAH,
+  );
+  if (pointsEarned === 0) return;
+
+  const user = await tx.user.update({
+    where: { id: order.userId },
+    data: { pointBalance: { increment: pointsEarned } },
+    select: { pointBalance: true },
+  });
+  await tx.order.update({
+    where: { id: order.id },
+    data: { pointsEarned },
+  });
+  await tx.pointTransaction.create({
+    data: {
+      userId: order.userId,
+      orderId: order.id,
+      type: PointType.EARN,
+      points: pointsEarned,
+      balanceAfter: user.pointBalance,
+      note: `Poin dari order ${order.orderCode}`,
+    },
+  });
+};
+
 export const expirePendingOrders = async (now = new Date()): Promise<number> => {
   const expiredCandidates = await prisma.order.findMany({
     where: { status: OrderStatus.PENDING, expiresAt: { lt: now } },
@@ -525,60 +653,7 @@ export const expirePendingOrders = async (now = new Date()): Promise<number> => 
         },
       });
 
-      for (const item of order.items) {
-        const released = await tx.ticketCategory.updateMany({
-          where: {
-            id: item.ticketCategoryId,
-            reserved: { gte: item.quantity },
-          },
-          data: { reserved: { decrement: item.quantity } },
-        });
-        if (released.count !== 1) {
-          throw new AppError(
-            'RESERVATION_INCONSISTENT',
-            `Reservasi stok untuk order ${order.orderCode} tidak konsisten`,
-            500,
-          );
-        }
-      }
-
-      if (order.pointsUsed > 0 && order.userId) {
-        const user = await tx.user.update({
-          where: { id: order.userId },
-          data: { pointBalance: { increment: order.pointsUsed } },
-          select: { pointBalance: true },
-        });
-        await tx.pointTransaction.create({
-          data: {
-            userId: order.userId,
-            orderId: order.id,
-            type: PointType.REFUND,
-            points: order.pointsUsed,
-            balanceAfter: user.pointBalance,
-            note: `Pengembalian poin untuk order ${order.orderCode} yang kedaluwarsa`,
-          },
-        });
-      }
-
-      if (order.voucherRedemption) {
-        await tx.voucherRedemption.delete({
-          where: { orderId: order.id },
-        });
-        const voucher = await tx.voucher.updateMany({
-          where: {
-            id: order.voucherRedemption.voucherId,
-            used: { gt: 0 },
-          },
-          data: { used: { decrement: 1 } },
-        });
-        if (voucher.count !== 1) {
-          throw new AppError(
-            'VOUCHER_USAGE_INCONSISTENT',
-            `Pemakaian voucher untuk order ${order.orderCode} tidak konsisten`,
-            500,
-          );
-        }
-      }
+      await releaseOrderResources(tx, order);
 
       return true;
     });
