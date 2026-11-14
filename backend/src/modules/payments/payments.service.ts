@@ -1,5 +1,5 @@
-import crypto from 'node:crypto';
 import {
+  EmailStatus,
   OrderStatus,
   PaymentStatus,
   Prisma,
@@ -8,9 +8,11 @@ import midtransClient, {
   type MidtransTransactionStatus,
 } from 'midtrans-client';
 import { env } from '../../config/env';
+import { sendTicketEmail } from '../../lib/mailer';
 import { prisma } from '../../lib/prisma';
 import type { AuthenticatedUser } from '../../types/auth';
 import { AppError } from '../../utils/app-error';
+import { assertOrderAccess } from '../orders/order-access';
 import {
   completeOrderPayment,
   releaseOrderResources,
@@ -22,34 +24,6 @@ import {
   verifyMidtransSignature,
 } from './payments.logic';
 import type { MidtransNotification } from './payments.schemas';
-
-const isValidAccessToken = (expected: string, actual?: string): boolean => {
-  if (!actual) return false;
-  const expectedBuffer = Buffer.from(expected);
-  const actualBuffer = Buffer.from(actual);
-  return (
-    expectedBuffer.length === actualBuffer.length &&
-    crypto.timingSafeEqual(expectedBuffer, actualBuffer)
-  );
-};
-
-const assertOrderAccess = (
-  order: { userId: string | null; accessToken: string },
-  actor: AuthenticatedUser | undefined,
-  accessToken?: string,
-): void => {
-  if (
-    actor?.id === order.userId ||
-    isValidAccessToken(order.accessToken, accessToken)
-  ) {
-    return;
-  }
-  throw new AppError(
-    'ORDER_ACCESS_DENIED',
-    'Anda tidak memiliki akses ke order ini',
-    403,
-  );
-};
 
 const createSnapClient = (): midtransClient.Snap => {
   if (!env.MIDTRANS_SERVER_KEY || !env.MIDTRANS_CLIENT_KEY) {
@@ -300,7 +274,7 @@ export const paymentsService = {
     const outcome = resolveMidtransOutcome(notification);
     const rawNotification = notificationAsJson(notification);
 
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const currentPayment = await tx.payment.findUniqueOrThrow({
         where: { id: payment.id },
       });
@@ -319,6 +293,7 @@ export const paymentsService = {
         include: {
           items: true,
           voucherRedemption: true,
+          event: { select: { title: true } },
         },
       });
       const now = new Date();
@@ -404,6 +379,34 @@ export const paymentsService = {
         },
       });
 
+      let emailLogId: string | undefined;
+      if (
+        outcome.settled &&
+        (action !== 'RECORD_ONLY' || order.status === OrderStatus.PAID)
+      ) {
+        const existingEmail = await tx.emailLog.findFirst({
+          where: {
+            orderId: order.id,
+            type: 'TICKET',
+            status: { in: [EmailStatus.QUEUED, EmailStatus.SENT] },
+          },
+          select: { id: true },
+        });
+        if (!existingEmail) {
+          const emailLog = await tx.emailLog.create({
+            data: {
+              orderId: order.id,
+              toEmail: order.buyerEmail,
+              type: 'TICKET',
+              subject: `Tiket Anda untuk ${order.event.title} - ${order.orderCode}`,
+              status: EmailStatus.QUEUED,
+            },
+            select: { id: true },
+          });
+          emailLogId = emailLog.id;
+        }
+      }
+
       return {
         orderCode: order.orderCode,
         orderStatus: outcome.settled && order.status === OrderStatus.PENDING
@@ -412,8 +415,19 @@ export const paymentsService = {
             ? outcome.orderStatus
             : order.status,
         paymentStatus,
+        emailLogId,
       };
     });
+
+    if (result.emailLogId) {
+      await sendTicketEmail(payment.orderId, result.emailLogId);
+    }
+
+    return {
+      orderCode: result.orderCode,
+      orderStatus: result.orderStatus,
+      paymentStatus: result.paymentStatus,
+    };
   },
 
   async syncOrderStatus(

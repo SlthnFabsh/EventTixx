@@ -1,13 +1,5 @@
 import { z } from 'zod';
 
-export const orderCodeParamsSchema = z.object({
-  orderCode: z.string().regex(/^ETX-\d{6}-[A-Z0-9_-]{6}$/),
-});
-
-export const orderAccessSchema = z.object({
-  accessToken: z.string().min(1).optional(),
-}).default({});
-
 export const midtransNotificationSchema = z
   .object({
     order_id: z.string().min(1),

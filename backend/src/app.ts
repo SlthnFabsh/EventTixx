@@ -23,6 +23,10 @@ import {
   orderPaymentsRouter,
   paymentsRouter,
 } from './modules/payments/payments.routes';
+import {
+  orderTicketsRouter,
+  ticketsRouter,
+} from './modules/tickets/tickets.routes';
 
 export const app = express();
 
@@ -79,7 +83,9 @@ app.use('/api/v1/events', publicEventsRouter);
 app.use('/api/v1/manage/events', eventsManagementRouter);
 app.use('/api/v1/orders', ordersRouter);
 app.use('/api/v1/orders', orderPaymentsRouter);
+app.use('/api/v1/orders', orderTicketsRouter);
 app.use('/api/v1/payments', paymentsRouter);
+app.use('/api/v1/tickets', ticketsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

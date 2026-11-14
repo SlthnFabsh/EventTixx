@@ -1,19 +1,15 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { optionalAuth } from '../../middlewares/auth';
 import { validate } from '../../middlewares/validate';
 import { asyncHandler } from '../../utils/async-handler';
 import { ok } from '../../utils/response';
 import {
-  midtransNotificationSchema,
+  orderAccessQuerySchema,
   orderAccessSchema,
   orderCodeParamsSchema,
-} from './payments.schemas';
+} from '../orders/orders.schemas';
+import { midtransNotificationSchema } from './payments.schemas';
 import { paymentsService } from './payments.service';
-
-const accessQuerySchema = z.object({
-  token: z.string().min(1).optional(),
-});
 
 export const paymentsRouter = Router();
 export const orderPaymentsRouter = Router();
@@ -33,7 +29,7 @@ orderPaymentsRouter.post(
   validate({
     params: orderCodeParamsSchema,
     body: orderAccessSchema,
-    query: accessQuerySchema,
+    query: orderAccessQuerySchema,
   }),
   asyncHandler(async (req, res) => {
     const { orderCode } = orderCodeParamsSchema.parse(req.params);
@@ -55,7 +51,7 @@ orderPaymentsRouter.post(
   validate({
     params: orderCodeParamsSchema,
     body: orderAccessSchema,
-    query: accessQuerySchema,
+    query: orderAccessQuerySchema,
   }),
   asyncHandler(async (req, res) => {
     const { orderCode } = orderCodeParamsSchema.parse(req.params);

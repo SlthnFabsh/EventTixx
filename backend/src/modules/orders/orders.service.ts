@@ -7,7 +7,8 @@ import {
   RoleName,
   UserStatus,
 } from '@prisma/client';
-import { nanoid } from 'nanoid';
+import crypto from 'node:crypto';
+import { customAlphabet, nanoid } from 'nanoid';
 import {
   MAX_POINT_DISCOUNT_RATIO,
   ORDER_EXPIRY_MINUTES,
@@ -20,6 +21,10 @@ import { AppError } from '../../utils/app-error';
 import type { CreateOrderInput } from './orders.schemas';
 
 const MAX_ORDER_AMOUNT = 2_147_483_647;
+const generateTicketCode = customAlphabet(
+  'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
+  8,
+);
 
 type LockedEvent = {
   id: string;
@@ -501,9 +506,10 @@ type PendingOrderResources = {
   id: string;
   orderCode: string;
   userId: string | null;
+  eventId: string;
   pointsUsed: number;
   totalAmount?: number;
-  items: Array<{ ticketCategoryId: string; quantity: number }>;
+  items: Array<{ id: string; ticketCategoryId: string; quantity: number }>;
   voucherRedemption: { voucherId: string } | null;
 };
 
@@ -590,6 +596,19 @@ export const completeOrderPayment = async (
       );
     }
   }
+
+  await tx.ticket.createMany({
+    data: order.items.flatMap((item) =>
+      Array.from({ length: item.quantity }, () => ({
+        ticketCode: `ETX-${generateTicketCode()}`,
+        qrToken: crypto.randomBytes(24).toString('base64url'),
+        orderId: order.id,
+        orderItemId: item.id,
+        eventId: order.eventId,
+        ticketCategoryId: item.ticketCategoryId,
+      })),
+    ),
+  });
 
   if (!order.userId) return;
   const member = await tx.user.findUnique({

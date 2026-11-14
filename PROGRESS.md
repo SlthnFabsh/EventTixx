@@ -17,7 +17,8 @@ Update terakhir: November 2026.
 | **5** | Katalog Publik | ✅ Selesai | Listing/filter/paginasi event terbit, detail kategori dan status penjualan |
 | **6** | Checkout & Reservasi Stok | ⚠️ Implementasi; DoD DB tertunda | Order guest/member, reserve atomik, voucher/poin, cron expiry |
 | **7** | Midtrans Sandbox + Webhook | ⚠️ Backend selesai; integrasi tertunda | Snap API, webhook signature, sync, settlement idempotent |
-| 8–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
+| **8** | Tiket, QR & Email Otomatis | ⚠️ Backend selesai; integrasi tertunda | Tiket saat settlement, QR token, email retry, akses tiket |
+| 9–14 | Modul Lanjutan | ⏸️ Belum | Sesuai urutan `docs/GUIDE.md` |
 
 ---
 
@@ -144,6 +145,18 @@ Update terakhir: November 2026.
   - Database/PostgreSQL dan Midtrans Sandbox belum diuji; kredensial `.env` tidak dibaca.
   - UI Snap belum terhubung karena frontend saat ini masih berupa starter Vite dan belum memiliki alur checkout/status order.
 
+### FASE 8 — Tiket, QR & Email Otomatis
+- **Yang dibuat:**
+  - Saat transisi order ke `PAID`, tiket per kuantitas dibuat di transaksi yang sama; tiap tiket mendapat kode yang mudah dibaca dan `qrToken` acak tanpa data pribadi.
+  - Email tiket berisi ringkasan event/order, kode tiket, QR inline + PNG attachment, dan tautan tiket online.
+  - Email dikirim setelah transaksi pembayaran commit; maksimal tiga percobaan dicatat satu per satu di `email_logs`, tanpa membatalkan pembayaran.
+  - `POST /api/v1/orders/:orderCode/resend-email` memakai otorisasi pemilik order atau `accessToken`.
+  - `GET /api/v1/tickets/by-token?token=` memberi tiket dan QR token untuk halaman tiket.
+- **Bukti yang tersedia:**
+  - `npm test` meloloskan tes escaping HTML email dan validasi akses tiket; total 12 tes lulus.
+  - `npm run typecheck` lolos.
+  - Database/PostgreSQL dan SMTP belum diuji; frontend masih belum memiliki halaman tiket/QR.
+
 ---
 
 ## 3. Daftar File Penting
@@ -223,7 +236,9 @@ Prefix: `/api/v1`
 | `POST` | `/api/v1/orders` | Publik / Bearer opsional | Buat order Guest atau Member dan reserve stok |
 | `POST` | `/api/v1/orders/:orderCode/pay` | Pemilik order / `accessToken` | Buat atau ambil ulang transaksi Snap |
 | `POST` | `/api/v1/orders/:orderCode/sync` | Pemilik order / `accessToken` | Sinkronkan status pembayaran ke Midtrans |
+| `POST` | `/api/v1/orders/:orderCode/resend-email` | Pemilik order / `accessToken` | Kirim ulang email tiket |
 | `POST` | `/api/v1/payments/midtrans/notification` | Signature Midtrans | Proses webhook pembayaran |
+| `GET` | `/api/v1/tickets/by-token?token=` | Token akses order | Ambil tiket dan QR token |
 
 ---
 
@@ -305,12 +320,12 @@ npm run prisma:studio
 
 ---
 
-## 9. Langkah Persis Berikutnya: FASE 8
+## 9. Langkah Persis Berikutnya: FASE 9
 
-Ikuti **`docs/GUIDE.md` FASE 8 — Tiket, QR & Email Otomatis**.
+Ikuti **`docs/GUIDE.md` FASE 9 — Fitur Member**.
 
 ### Target Pengerjaan
-1. Generate tiket dan QR secara transaksional untuk setiap item order yang berubah ke `PAID`.
-2. Tambahkan endpoint akses tiket berdasarkan `accessToken`.
-3. Implementasikan email ticketing dan audit `email_logs`; kegagalan email tidak boleh membatalkan pembayaran.
-4. Lengkapi/verifikasi integrasi Fase 7 di sandbox (webhook, UI Snap, status sinkron).
+1. Implementasikan riwayat order, detail order, tiket, dan ledger poin untuk member.
+2. Tambahkan endpoint validasi voucher tanpa membuat order.
+3. Implementasikan klaim order guest saat email diverifikasi/register.
+4. Tambahkan CRUD voucher dan pastikan poin EARN tidak tercatat lebih dari sekali.
